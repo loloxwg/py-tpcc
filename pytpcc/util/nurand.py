@@ -29,7 +29,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # -----------------------------------------------------------------------
 
-import rand
+from util import rand
 
 def makeForLoad():
     """Create random NURand constants, appropriate for loading the database."""
@@ -49,7 +49,7 @@ def makeForRun(loadC):
     while validCRun(cRun, loadC.cLast) == False:
         cRun = rand.number(0, 255)
     assert validCRun(cRun, loadC.cLast)
-    
+
     cId = rand.number(0, 1023)
     orderLineItemId = rand.number(0, 8191)
     return NURandC(cRun, cId, orderLineItemId)

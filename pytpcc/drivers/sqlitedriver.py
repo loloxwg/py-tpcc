@@ -34,11 +34,11 @@ from __future__ import with_statement
 import os
 import sqlite3
 import logging
-import commands
+import subprocess
 from pprint import pprint,pformat
 
 import constants
-from abstractdriver import *
+from drivers.abstractdriver import *
 
 TXN_QUERIES = {
     "DELIVERY": {
@@ -60,16 +60,16 @@ TXN_QUERIES = {
         "getItemInfo": "SELECT I_PRICE, I_NAME, I_DATA FROM ITEM WHERE I_ID = ?", # ol_i_id
         "getStockInfo": "SELECT S_QUANTITY, S_DATA, S_YTD, S_ORDER_CNT, S_REMOTE_CNT, S_DIST_%02d FROM STOCK WHERE S_I_ID = ? AND S_W_ID = ?", # d_id, ol_i_id, ol_supply_w_id
         "updateStock": "UPDATE STOCK SET S_QUANTITY = ?, S_YTD = ?, S_ORDER_CNT = ?, S_REMOTE_CNT = ? WHERE S_I_ID = ? AND S_W_ID = ?", # s_quantity, s_order_cnt, s_remote_cnt, ol_i_id, ol_supply_w_id
-        "createOrderLine": "INSERT INTO ORDER_LINE (OL_O_ID, OL_D_ID, OL_W_ID, OL_NUMBER, OL_I_ID, OL_SUPPLY_W_ID, OL_DELIVERY_D, OL_QUANTITY, OL_AMOUNT, OL_DIST_INFO) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", # o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info        
+        "createOrderLine": "INSERT INTO ORDER_LINE (OL_O_ID, OL_D_ID, OL_W_ID, OL_NUMBER, OL_I_ID, OL_SUPPLY_W_ID, OL_DELIVERY_D, OL_QUANTITY, OL_AMOUNT, OL_DIST_INFO) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", # o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info
     },
-    
+
     "ORDER_STATUS": {
         "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = ? AND C_D_ID = ? AND C_ID = ?", # w_id, d_id, c_id
         "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = ? AND C_D_ID = ? AND C_LAST = ? ORDER BY C_FIRST", # w_id, d_id, c_last
         "getLastOrder": "SELECT O_ID, O_CARRIER_ID, O_ENTRY_D FROM ORDERS WHERE O_W_ID = ? AND O_D_ID = ? AND O_C_ID = ? ORDER BY O_ID DESC LIMIT 1", # w_id, d_id, c_id
-        "getOrderLines": "SELECT OL_SUPPLY_W_ID, OL_I_ID, OL_QUANTITY, OL_AMOUNT, OL_DELIVERY_D FROM ORDER_LINE WHERE OL_W_ID = ? AND OL_D_ID = ? AND OL_O_ID = ?", # w_id, d_id, o_id        
+        "getOrderLines": "SELECT OL_SUPPLY_W_ID, OL_I_ID, OL_QUANTITY, OL_AMOUNT, OL_DELIVERY_D FROM ORDER_LINE WHERE OL_W_ID = ? AND OL_D_ID = ? AND OL_O_ID = ?", # w_id, d_id, o_id
     },
-    
+
     "PAYMENT": {
         "getWarehouse": "SELECT W_NAME, W_STREET_1, W_STREET_2, W_CITY, W_STATE, W_ZIP FROM WAREHOUSE WHERE W_ID = ?", # w_id
         "updateWarehouseBalance": "UPDATE WAREHOUSE SET W_YTD = W_YTD + ? WHERE W_ID = ?", # h_amount, w_id
@@ -81,9 +81,9 @@ TXN_QUERIES = {
         "updateGCCustomer": "UPDATE CUSTOMER SET C_BALANCE = ?, C_YTD_PAYMENT = ?, C_PAYMENT_CNT = ? WHERE C_W_ID = ? AND C_D_ID = ? AND C_ID = ?", # c_balance, c_ytd_payment, c_payment_cnt, c_w_id, c_d_id, c_id
         "insertHistory": "INSERT INTO HISTORY VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     },
-    
+
     "STOCK_LEVEL": {
-        "getOId": "SELECT D_NEXT_O_ID FROM DISTRICT WHERE D_W_ID = ? AND D_ID = ?", 
+        "getOId": "SELECT D_NEXT_O_ID FROM DISTRICT WHERE D_W_ID = ? AND D_ID = ?",
         "getStockCount": """
             SELECT COUNT(DISTINCT(OL_I_ID)) FROM ORDER_LINE, STOCK
             WHERE OL_W_ID = ?
@@ -105,53 +105,53 @@ class SqliteDriver(AbstractDriver):
     DEFAULT_CONFIG = {
         "database": ("The path to the SQLite database", "/tmp/tpcc.db" ),
     }
-    
+
     def __init__(self, ddl):
         super(SqliteDriver, self).__init__("sqlite", ddl)
         self.database = None
         self.conn = None
         self.cursor = None
-    
+
     ## ----------------------------------------------
     ## makeDefaultConfig
     ## ----------------------------------------------
     def makeDefaultConfig(self):
         return SqliteDriver.DEFAULT_CONFIG
-    
+
     ## ----------------------------------------------
     ## loadConfig
     ## ----------------------------------------------
     def loadConfig(self, config):
         for key in SqliteDriver.DEFAULT_CONFIG.keys():
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
-        
+
         self.database = str(config["database"])
-        
+
         if config["reset"] and os.path.exists(self.database):
             logging.debug("Deleting database '%s'" % self.database)
             os.unlink(self.database)
-        
+
         if os.path.exists(self.database) == False:
             logging.debug("Loading DDL file '%s'" % (self.ddl))
             ## HACK
             cmd = "sqlite3 %s < %s" % (self.database, self.ddl)
-            (result, output) = commands.getstatusoutput(cmd)
+            (result, output) = subprocess.getstatusoutput(cmd)
             assert result == 0, cmd + "\n" + output
         ## IF
-            
+
         self.conn = sqlite3.connect(self.database)
         self.cursor = self.conn.cursor()
-    
+
     ## ----------------------------------------------
     ## loadTuples
     ## ----------------------------------------------
     def loadTuples(self, tableName, tuples):
         if len(tuples) == 0: return
-        
+
         p = ["?"]*len(tuples[0])
         sql = "INSERT INTO %s VALUES (%s)" % (tableName, ",".join(p))
         self.cursor.executemany(sql, tuples)
-        
+
         logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
         return
 
@@ -167,7 +167,7 @@ class SqliteDriver(AbstractDriver):
     ## ----------------------------------------------
     def doDelivery(self, params):
         q = TXN_QUERIES["DELIVERY"]
-        
+
         w_id = params["w_id"]
         o_carrier_id = params["o_carrier_id"]
         ol_delivery_d = params["ol_delivery_d"]
@@ -181,10 +181,10 @@ class SqliteDriver(AbstractDriver):
                 continue
             assert len(newOrder) > 0
             no_o_id = newOrder[0]
-            
+
             self.cursor.execute(q["getCId"], [no_o_id, d_id, w_id])
             c_id = self.cursor.fetchone()[0]
-            
+
             self.cursor.execute(q["sumOLAmount"], [no_o_id, d_id, w_id])
             ol_total = self.cursor.fetchone()[0]
 
@@ -212,7 +212,7 @@ class SqliteDriver(AbstractDriver):
     ## ----------------------------------------------
     def doNewOrder(self, params):
         q = TXN_QUERIES["NEW_ORDER"]
-        
+
         w_id = params["w_id"]
         d_id = params["d_id"]
         c_id = params["c_id"]
@@ -220,7 +220,7 @@ class SqliteDriver(AbstractDriver):
         i_ids = params["i_ids"]
         i_w_ids = params["i_w_ids"]
         i_qtys = params["i_qtys"]
-            
+
         assert len(i_ids) > 0
         assert len(i_ids) == len(i_w_ids)
         assert len(i_ids) == len(i_qtys)
@@ -233,7 +233,7 @@ class SqliteDriver(AbstractDriver):
             self.cursor.execute(q["getItemInfo"], [i_ids[i]])
             items.append(self.cursor.fetchone())
         assert len(items) == len(i_ids)
-        
+
         ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
         ## Note that this will happen with 1% of transactions on purpose.
         for item in items:
@@ -241,18 +241,18 @@ class SqliteDriver(AbstractDriver):
                 ## TODO Abort here!
                 return
         ## FOR
-        
+
         ## ----------------
         ## Collect Information from WAREHOUSE, DISTRICT, and CUSTOMER
         ## ----------------
         self.cursor.execute(q["getWarehouseTaxRate"], [w_id])
         w_tax = self.cursor.fetchone()[0]
-        
+
         self.cursor.execute(q["getDistrict"], [d_id, w_id])
         district_info = self.cursor.fetchone()
         d_tax = district_info[0]
         d_next_o_id = district_info[1]
-        
+
         self.cursor.execute(q["getCustomer"], [w_id, d_id, c_id])
         customer_info = self.cursor.fetchone()
         c_discount = customer_info[0]
@@ -262,7 +262,7 @@ class SqliteDriver(AbstractDriver):
         ## ----------------
         ol_cnt = len(i_ids)
         o_carrier_id = constants.NULL_CARRIER_ID
-        
+
         self.cursor.execute(q["incrementNextOrderId"], [d_next_o_id + 1, d_id, w_id])
         self.cursor.execute(q["createOrder"], [d_next_o_id, d_id, w_id, c_id, o_entry_d, o_carrier_id, ol_cnt, all_local])
         self.cursor.execute(q["createNewOrder"], [d_next_o_id, d_id, w_id])
@@ -302,7 +302,7 @@ class SqliteDriver(AbstractDriver):
             else:
                 s_quantity = s_quantity + 91 - ol_quantity
             s_order_cnt += 1
-            
+
             if ol_supply_w_id != w_id: s_remote_cnt += 1
 
             self.cursor.execute(q["updateStock"], [s_quantity, s_ytd, s_order_cnt, s_remote_cnt, ol_i_id, ol_supply_w_id])
@@ -321,7 +321,7 @@ class SqliteDriver(AbstractDriver):
             ## Add the info to be returned
             item_data.append( (i_name, s_quantity, brand_generic, i_price, ol_amount) )
         ## FOR
-        
+
         ## Commit!
         self.conn.commit()
 
@@ -333,7 +333,7 @@ class SqliteDriver(AbstractDriver):
 
         ## Pack up values the client is missing (see TPC-C 2.4.3.5)
         misc = [ (w_tax, d_tax, d_next_o_id, total) ]
-        
+
         return [ customer_info, misc, item_data ]
 
     ## ----------------------------------------------
@@ -341,12 +341,12 @@ class SqliteDriver(AbstractDriver):
     ## ----------------------------------------------
     def doOrderStatus(self, params):
         q = TXN_QUERIES["ORDER_STATUS"]
-        
+
         w_id = params["w_id"]
         d_id = params["d_id"]
         c_id = params["c_id"]
         c_last = params["c_last"]
-        
+
         assert w_id, pformat(params)
         assert d_id, pformat(params)
 
@@ -378,7 +378,7 @@ class SqliteDriver(AbstractDriver):
 
     ## ----------------------------------------------
     ## doPayment
-    ## ----------------------------------------------    
+    ## ----------------------------------------------
     def doPayment(self, params):
         q = TXN_QUERIES["PAYMENT"]
 
@@ -400,7 +400,7 @@ class SqliteDriver(AbstractDriver):
             all_customers = self.cursor.fetchall()
             assert len(all_customers) > 0
             namecnt = len(all_customers)
-            index = (namecnt-1)/2
+            index = int((namecnt-1)/2)
             customer = all_customers[index]
             c_id = customer[0]
         assert len(customer) > 0
@@ -411,10 +411,10 @@ class SqliteDriver(AbstractDriver):
 
         self.cursor.execute(q["getWarehouse"], [w_id])
         warehouse = self.cursor.fetchone()
-        
+
         self.cursor.execute(q["getDistrict"], [w_id, d_id])
         district = self.cursor.fetchone()
-        
+
         self.cursor.execute(q["updateWarehouseBalance"], [h_amount, w_id])
         self.cursor.execute(q["updateDistrictBalance"], [h_amount, w_id, d_id])
 
@@ -444,27 +444,27 @@ class SqliteDriver(AbstractDriver):
 
         # Hand back all the warehouse, district, and customer data
         return [ warehouse, district, customer ]
-        
+
     ## ----------------------------------------------
     ## doStockLevel
-    ## ----------------------------------------------    
+    ## ----------------------------------------------
     def doStockLevel(self, params):
         q = TXN_QUERIES["STOCK_LEVEL"]
 
         w_id = params["w_id"]
         d_id = params["d_id"]
         threshold = params["threshold"]
-        
+
         self.cursor.execute(q["getOId"], [w_id, d_id])
         result = self.cursor.fetchone()
         assert result
         o_id = result[0]
-        
+
         self.cursor.execute(q["getStockCount"], [w_id, d_id, o_id, (o_id - 20), w_id, threshold])
         result = self.cursor.fetchone()
-        
+
         self.conn.commit()
-        
+
         return int(result[0])
-        
+
 ## CLASS
