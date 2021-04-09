@@ -77,8 +77,8 @@ class CsvDriver(AbstractDriver):
     def executeTransaction(self, txn, params):
         if not txn in self.txn_outputs:
             path = os.path.join(self.txn_directory, "%s.csv" % txn)
-            self.txn_outputs[txn] = csv.writer(open(path, 'wb'), quoting=csv.QUOTE_ALL)
-            self.txn_params[txn] = params.keys()[:]
+            self.txn_outputs[txn] = csv.writer(open(path, 'w'), quoting=csv.QUOTE_ALL)
+            self.txn_params[txn] = list(params.keys())
             self.txn_outputs[txn].writerow(["Timestamp"] + self.txn_params[txn])
         ## IF
         row = [datetime.now()] + [params[k] for k in self.txn_params[txn]]

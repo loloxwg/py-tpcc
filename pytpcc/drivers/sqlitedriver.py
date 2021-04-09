@@ -359,7 +359,7 @@ class SqliteDriver(AbstractDriver):
             all_customers = self.cursor.fetchall()
             assert len(all_customers) > 0
             namecnt = len(all_customers)
-            index = (namecnt-1)/2
+            index = int((namecnt-1)/2)
             customer = all_customers[index]
             c_id = customer[0]
         assert len(customer) > 0
