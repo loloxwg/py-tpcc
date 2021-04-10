@@ -36,6 +36,7 @@ import duckdb
 import logging
 import subprocess
 from pprint import pprint,pformat
+import datetime
 
 import constants
 from drivers.abstractdriver import *
@@ -145,15 +146,49 @@ class DuckdbDriver(AbstractDriver):
         # self.cursor = self.conn.cursor()
         self.cursor = self.conn
 
+    def build_sql(self, tableName, tuples):
+        all_rows = ''
+        for row in tuples:
+            entry = '('
+            for col in row:
+                if col is None:
+                    entry = f'{entry}NULL,'
+                    continue
+                if isinstance(col, str):
+                    entry = f'{entry}\'{col}\','
+                elif isinstance(col, datetime):
+                    entry = f'{entry}\'{col}\','
+                else:
+                    entry = f'{entry}{col},'
+            entry = entry[:-1] + '),'
+            all_rows += entry
+
+
+        return all_rows
+
     ## ----------------------------------------------
     ## loadTuples
     ## ----------------------------------------------
     def loadTuples(self, tableName, tuples):
         if len(tuples) == 0: return
 
-        p = ["?"]*len(tuples[0])
-        sql = "INSERT INTO %s VALUES (%s)" % (tableName, ",".join(p))
-        self.cursor.executemany(sql, tuples)
+        if tableName == 'ORDER_LINE':
+            for i in range(0, len(tuples), 1000):
+                try:
+                    values = self.build_sql(tableName, tuples[i:i+1000])
+                    sql = f'INSERT INTO {tableName} VALUES {values[:-1]}'
+                    self.cursor.execute(sql)
+                except Exception as e:
+                    print(e)
+                    raise e
+        else:
+            values = self.build_sql(tableName, tuples)
+            sql = f'INSERT INTO {tableName} VALUES {values[:-1]}'
+            try:
+                self.cursor.execute(sql)
+            except Exception as e:
+                print(e)
+                raise e
 
         logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
         return
