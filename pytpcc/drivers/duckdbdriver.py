@@ -136,7 +136,8 @@ class DuckdbDriver(AbstractDriver):
             logging.debug("Loading DDL file '%s'" % (self.ddl))
             ## HACK
             ## TODO
-            cmd = "/Users/xupeng/github/duckdb/build/duckdb %s < %s" % (self.database, self.ddl)
+
+            cmd = "/Users/xwg/dev/db/duckdb/build/release/duckdb %s < %s" % (self.database, self.ddl)
             (result, output) = subprocess.getstatusoutput(cmd)
             assert result == 0, cmd + "\n" + output
         ## IF

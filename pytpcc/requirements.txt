@@ -1,4 +1,4 @@
 configparser==5.0.2
-duckdb==0.2.5
-numpy==1.20.2
+duckdb==0.8.1
+numpy>=1.20.2
 pymongo==3.11.3

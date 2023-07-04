@@ -1,7 +1,9 @@
 # Duckdb TPCC Python Driver
 
 ## Prequistes
-Make sure Python 3.6 or higher is installed
+Make sure Python 3.8 or higher is installed
+pip install duckdb==0.8.1
+pip install numpy
 
 ## How to mock TPC-C data
 
