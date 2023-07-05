@@ -137,7 +137,7 @@ class DuckdbDriver(AbstractDriver):
             ## HACK
             ## TODO
 
-            cmd = "/Users/xwg/dev/db/duckdb/build/release/duckdb %s < %s" % (self.database, self.ddl)
+            cmd = "/home/stoneatom/duckdb/build/release/duckdb %s < %s" % (self.database, self.ddl)
             (result, output) = subprocess.getstatusoutput(cmd)
             assert result == 0, cmd + "\n" + output
         ## IF
