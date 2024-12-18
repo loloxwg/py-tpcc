@@ -35,6 +35,7 @@ import argparse
 import glob
 import time
 import multiprocessing
+import traceback
 from configparser import ConfigParser
 from pprint import pprint,pformat
 
