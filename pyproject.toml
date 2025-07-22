@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "py-tpcc"
+version = "0.1.0"
+authors = [
+    {name = "Andy Pavlo", email = "pavlo@cs.brown.edu"},
+]
+description = "Python implementation of the TPC-C benchmark"
+readme = "README"
+requires-python = ">=3.8"
+license = {text = "BSD"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Topic :: Database :: Front-Ends",
+    "Topic :: Software Development :: Testing",
+]
+keywords = ["database", "benchmark", "tpcc"]
+dependencies = [
+    "configparser>=7.0.0",
+    "duckdb>=1.0.0",
+    "numpy>=1.24.0",
+    "pymongo>=4.5.0",
+    "execnet>=2.0.0",
+]
+
+[project.urls]
+"Homepage" = "http://www.cs.brown.edu/~pavlo/"
+"Bug Tracker" = "https://github.com/apavlo/py-tpcc/issues"
+"Source" = "https://github.com/apavlo/py-tpcc"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+packages = ["pytpcc"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+pytpcc = ["*.sql"]
+
+[tool.uv]
+required-version = "0.8.0"
