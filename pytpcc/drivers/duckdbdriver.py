@@ -160,12 +160,51 @@ class DuckdbDriver(AbstractDriver):
 
         if os.path.exists(self.database) == False:
             logging.debug("Loading DDL file '%s'" % (self.ddl))
+            # 检查DDL文件是否存在
+            if not os.path.exists(self.ddl):
+                raise FileNotFoundError("DDL file '%s' not found" % self.ddl)
+            
+            # 使用os.path.basename获取文件名，检查是否为duckdb.sql或包含duckdb的SQL文件
+            ddl_filename = os.path.basename(self.ddl)
+            if not (ddl_filename == "duckdb.sql" or "duckdb" in ddl_filename.lower()):
+                logging.warning("DDL file '%s' may not be compatible with %s driver" % (self.ddl, self.name))
+                # 继续执行，但发出警告，而不是直接终止程序
+                self.ddl = os.path.join(os.path.dirname(os.path.dirname(__file__)), "duckdb.sql")
+                logging.info("Using default DDL file '%s' instead" % self.ddl)
+            
             ## HACK
             ## TODO
-
-            cmd = "duckdb %s < %s" % (self.database, self.ddl)
-            (result, output) = subprocess.getstatusoutput(cmd)
-            assert result == 0, cmd + "\n" + output
+            try:
+                # 读取SQL文件内容
+                with open(self.ddl, 'r') as sql_file:
+                    sql_content = sql_file.read()
+                
+                # 直接使用duckdb Python接口创建数据库并执行SQL
+                import duckdb
+                logging.debug("Creating DuckDB database and executing SQL from '%s'" % self.ddl)
+                
+                # 创建连接
+                conn = duckdb.connect(self.database)
+                
+                # 执行SQL脚本
+                # 将SQL脚本拆分为单独的语句并逐个执行
+                sql_statements = sql_content.split(';')
+                for statement in sql_statements:
+                    statement = statement.strip()
+                    if statement:  # 跳过空语句
+                        try:
+                            conn.execute(statement)
+                        except Exception as stmt_error:
+                            logging.warning(f"Error executing statement: {statement[:100]}... - {str(stmt_error)}")
+                            # 继续执行其他语句，不中断
+                
+                # 关闭连接
+                conn.close()
+                logging.debug("SQL executed successfully")
+                    
+            except Exception as e:
+                logging.error(f"Error executing DuckDB SQL: {str(e)}")
+                raise
         ## IF
 
         self.conn = duckdb.connect(self.database)

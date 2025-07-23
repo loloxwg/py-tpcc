@@ -28,11 +28,11 @@ from __future__ import with_statement
 from abstractdriver import *
 from pprint import pprint, pformat
 from pyrant import protocol
-
-import constants
+from pprint import pprint,pformat
+from pytpcc import constants
+from pytpcc.drivers.abstractdriver import AbstractDriver
 import logging
 import os
-import pyrant
 import sys
 
 TABLE_COLUMNS = {

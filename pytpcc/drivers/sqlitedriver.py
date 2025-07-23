@@ -103,7 +103,7 @@ TXN_QUERIES = {
 ## ==============================================
 class SqliteDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "database": ("The path to the SQLite database", "/tmp/tpcc.db" ),
+        "database": ("The path to the SQLite database", "/tmp/tpcc_sqlite.db" ),
     }
 
     def __init__(self, ddl):
