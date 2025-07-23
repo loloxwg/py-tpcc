@@ -26,7 +26,7 @@
 
 from datetime import datetime
 
-import constants
+from pytpcc import constants
 
 ## ==============================================
 ## AbstractDriver

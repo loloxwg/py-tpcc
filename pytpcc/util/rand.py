@@ -31,7 +31,7 @@
 
 import random
 # import nurand
-from util import nurand
+from pytpcc.util import nurand
 
 SYLLABLES = [ "BAR", "OUGHT", "ABLE", "PRI", "PRES", "ESE", "ANTI", "CALLY", "ATION", "EING" ]
 

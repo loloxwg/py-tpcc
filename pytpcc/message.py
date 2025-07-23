@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------
 # Copyright (C) 2011
 # Andy Pavlo & Yang Lu
-# http:##www.cs.brown.edu/~pavlo/
+# http://www.cs.brown.edu/~pavlo/
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -33,12 +33,12 @@ import logging
 import re
 import argparse
 import glob
-import time 
-from pprint import pprint,pformat
+import time
+from pprint import pprint, pformat
 
-from util import *
-from runtime import *
-import drivers
+from pytpcc.util import *
+from pytpcc.runtime import *
+import pytpcc.drivers
 
 EMPTY = 0
 CMD_LOAD = 1
@@ -46,8 +46,8 @@ CMD_EXECUTE = 2
 CMD_STOP = 3
 LOAD_COMPLETED = 4
 EXECUTE_COMPLETED = 5
- 
+
 class Message:
-    def __init__(self,header=EMPTY,data=None):
-        self.header=header
-	self.data=data
+    def __init__(self, header=EMPTY, data=None):
+        self.header = header
+        self.data = data

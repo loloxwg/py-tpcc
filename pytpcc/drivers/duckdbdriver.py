@@ -35,66 +35,92 @@ import os
 import duckdb
 import logging
 import subprocess
-from pprint import pprint,pformat
+from pprint import pprint, pformat
 import datetime
 
-import constants
-from drivers.abstractdriver import *
+from pytpcc import constants
+from pytpcc.drivers.abstractdriver import *
 
 TXN_QUERIES = {
     "DELIVERY": {
-        "getNewOrder": "SELECT NO_O_ID FROM NEW_ORDER WHERE NO_D_ID = {} AND NO_W_ID = {} AND NO_O_ID > -1 LIMIT 1", #
-        "deleteNewOrder": "DELETE FROM NEW_ORDER WHERE NO_D_ID = {} AND NO_W_ID = {} AND NO_O_ID = {}", # d_id, w_id, no_o_id
-        "getCId": "SELECT O_C_ID FROM ORDERS WHERE O_ID = {} AND O_D_ID = {} AND O_W_ID = {}", # no_o_id, d_id, w_id
-        "updateOrders": "UPDATE ORDERS SET O_CARRIER_ID = {} WHERE O_ID = {} AND O_D_ID = {} AND O_W_ID = {}", # o_carrier_id, no_o_id, d_id, w_id
-        "updateOrderLine": "UPDATE ORDER_LINE SET OL_DELIVERY_D = '{}' WHERE OL_O_ID = {} AND OL_D_ID = {} AND OL_W_ID = {}", # o_entry_d, no_o_id, d_id, w_id
-        "sumOLAmount": "SELECT SUM(OL_AMOUNT) FROM ORDER_LINE WHERE OL_O_ID = {} AND OL_D_ID = {} AND OL_W_ID = {}", # no_o_id, d_id, w_id
-        "updateCustomer": "UPDATE CUSTOMER SET C_BALANCE = C_BALANCE + {} WHERE C_ID = {} AND C_D_ID = {} AND C_W_ID = {}", # ol_total, c_id, d_id, w_id
+        "getNewOrder": "SELECT NO_O_ID FROM NEW_ORDER WHERE NO_D_ID = {} AND NO_W_ID = {} AND NO_O_ID > -1 LIMIT 1",  #
+        "deleteNewOrder": "DELETE FROM NEW_ORDER WHERE NO_D_ID = {} AND NO_W_ID = {} AND NO_O_ID = {}",
+        # d_id, w_id, no_o_id
+        "getCId": "SELECT O_C_ID FROM ORDERS WHERE O_ID = {} AND O_D_ID = {} AND O_W_ID = {}",  # no_o_id, d_id, w_id
+        "updateOrders": "UPDATE ORDERS SET O_CARRIER_ID = {} WHERE O_ID = {} AND O_D_ID = {} AND O_W_ID = {}",
+        # o_carrier_id, no_o_id, d_id, w_id
+        "updateOrderLine": "UPDATE ORDER_LINE SET OL_DELIVERY_D = '{}' WHERE OL_O_ID = {} AND OL_D_ID = {} AND OL_W_ID = {}",
+        # o_entry_d, no_o_id, d_id, w_id
+        "sumOLAmount": "SELECT SUM(OL_AMOUNT) FROM ORDER_LINE WHERE OL_O_ID = {} AND OL_D_ID = {} AND OL_W_ID = {}",
+        # no_o_id, d_id, w_id
+        "updateCustomer": "UPDATE CUSTOMER SET C_BALANCE = C_BALANCE + {} WHERE C_ID = {} AND C_D_ID = {} AND C_W_ID = {}",
+        # ol_total, c_id, d_id, w_id
     },
     "NEW_ORDER": {
-        "getWarehouseTaxRate": "SELECT W_TAX FROM WAREHOUSE WHERE W_ID = {}", # w_id
-        "getDistrict": "SELECT D_TAX, D_NEXT_O_ID FROM DISTRICT WHERE D_ID = {} AND D_W_ID = {}", # d_id, w_id
-        "incrementNextOrderId": "UPDATE DISTRICT SET D_NEXT_O_ID = {} WHERE D_ID = {} AND D_W_ID = {}", # d_next_o_id, d_id, w_id
-        "getCustomer": "SELECT C_DISCOUNT, C_LAST, C_CREDIT FROM CUSTOMER WHERE C_W_ID = {} AND C_D_ID = {} AND C_ID = {}", # w_id, d_id, c_id
-        "createOrder": "INSERT INTO ORDERS (O_ID, O_D_ID, O_W_ID, O_C_ID, O_ENTRY_D, O_CARRIER_ID, O_OL_CNT, O_ALL_LOCAL) VALUES ({}, {}, {}, {}, '{}', {}, {}, {})", # d_next_o_id, d_id, w_id, c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local
-        "createNewOrder": "INSERT INTO NEW_ORDER (NO_O_ID, NO_D_ID, NO_W_ID) VALUES ({}, {}, {})", # o_id, d_id, w_id
-        "getItemInfo": "SELECT I_PRICE, I_NAME, I_DATA FROM ITEM WHERE I_ID = {}", # ol_i_id
-        "getStockInfo": "SELECT S_QUANTITY, S_DATA, S_YTD, S_ORDER_CNT, S_REMOTE_CNT, S_DIST_{:02} FROM STOCK WHERE S_I_ID = {} AND S_W_ID = {}", # d_id, ol_i_id, ol_supply_w_id
-        "updateStock": "UPDATE STOCK SET S_QUANTITY = {}, S_YTD = {}, S_ORDER_CNT = {}, S_REMOTE_CNT = {} WHERE S_I_ID = {} AND S_W_ID = {}", # s_quantity, s_order_cnt, s_remote_cnt, ol_i_id, ol_supply_w_id
-        "createOrderLine": "INSERT INTO ORDER_LINE (OL_O_ID, OL_D_ID, OL_W_ID, OL_NUMBER, OL_I_ID, OL_SUPPLY_W_ID, OL_DELIVERY_D, OL_QUANTITY, OL_AMOUNT, OL_DIST_INFO) VALUES ({}, {}, {}, {}, {}, {}, '{}', {}, {}, '{}')", # o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info
+        "getWarehouseTaxRate": "SELECT W_TAX FROM WAREHOUSE WHERE W_ID = {}",  # w_id
+        "getDistrict": "SELECT D_TAX, D_NEXT_O_ID FROM DISTRICT WHERE D_ID = {} AND D_W_ID = {}",  # d_id, w_id
+        "incrementNextOrderId": "UPDATE DISTRICT SET D_NEXT_O_ID = {} WHERE D_ID = {} AND D_W_ID = {}",
+        # d_next_o_id, d_id, w_id
+        "getCustomer": "SELECT C_DISCOUNT, C_LAST, C_CREDIT FROM CUSTOMER WHERE C_W_ID = {} AND C_D_ID = {} AND C_ID = {}",
+        # w_id, d_id, c_id
+        "createOrder": "INSERT INTO ORDERS (O_ID, O_D_ID, O_W_ID, O_C_ID, O_ENTRY_D, O_CARRIER_ID, O_OL_CNT, O_ALL_LOCAL) VALUES ({}, {}, {}, {}, '{}', {}, {}, {})",
+        # d_next_o_id, d_id, w_id, c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local
+        "createNewOrder": "INSERT INTO NEW_ORDER (NO_O_ID, NO_D_ID, NO_W_ID) VALUES ({}, {}, {})",  # o_id, d_id, w_id
+        "getItemInfo": "SELECT I_PRICE, I_NAME, I_DATA FROM ITEM WHERE I_ID = {}",  # ol_i_id
+        "getStockInfo": "SELECT S_QUANTITY, S_DATA, S_YTD, S_ORDER_CNT, S_REMOTE_CNT, S_DIST_{:02} FROM STOCK WHERE S_I_ID = {} AND S_W_ID = {}",
+        # d_id, ol_i_id, ol_supply_w_id
+        "updateStock": "UPDATE STOCK SET S_QUANTITY = {}, S_YTD = {}, S_ORDER_CNT = {}, S_REMOTE_CNT = {} WHERE S_I_ID = {} AND S_W_ID = {}",
+        # s_quantity, s_order_cnt, s_remote_cnt, ol_i_id, ol_supply_w_id
+        "createOrderLine": "INSERT INTO ORDER_LINE (OL_O_ID, OL_D_ID, OL_W_ID, OL_NUMBER, OL_I_ID, OL_SUPPLY_W_ID, OL_DELIVERY_D, OL_QUANTITY, OL_AMOUNT, OL_DIST_INFO) VALUES ({}, {}, {}, {}, {}, {}, '{}', {}, {}, '{}')",
+        # o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info
     },
 
     "ORDER_STATUS": {
-        "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = {} AND C_D_ID = {} AND C_ID = {}", # w_id, d_id, c_id
-        "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = {} AND C_D_ID = {} AND C_LAST = '{}' ORDER BY C_FIRST", # w_id, d_id, c_last
-        "getLastOrder": "SELECT O_ID, O_CARRIER_ID, O_ENTRY_D FROM ORDERS WHERE O_W_ID = {} AND O_D_ID = {} AND O_C_ID = {} ORDER BY O_ID DESC LIMIT 1", # w_id, d_id, c_id
-        "getOrderLines": "SELECT OL_SUPPLY_W_ID, OL_I_ID, OL_QUANTITY, OL_AMOUNT, OL_DELIVERY_D FROM ORDER_LINE WHERE OL_W_ID = {} AND OL_D_ID = {} AND OL_O_ID = {}", # w_id, d_id, o_id
+        "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = {} AND C_D_ID = {} AND C_ID = {}",
+        # w_id, d_id, c_id
+        "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = {} AND C_D_ID = {} AND C_LAST = '{}' ORDER BY C_FIRST",
+        # w_id, d_id, c_last
+        "getLastOrder": "SELECT O_ID, O_CARRIER_ID, O_ENTRY_D FROM ORDERS WHERE O_W_ID = {} AND O_D_ID = {} AND O_C_ID = {} ORDER BY O_ID DESC LIMIT 1",
+        # w_id, d_id, c_id
+        "getOrderLines": "SELECT OL_SUPPLY_W_ID, OL_I_ID, OL_QUANTITY, OL_AMOUNT, OL_DELIVERY_D FROM ORDER_LINE WHERE OL_W_ID = {} AND OL_D_ID = {} AND OL_O_ID = {}",
+        # w_id, d_id, o_id
     },
 
     "PAYMENT": {
-        "getWarehouse": "SELECT W_NAME, W_STREET_1, W_STREET_2, W_CITY, W_STATE, W_ZIP FROM WAREHOUSE WHERE W_ID = {}", # w_id
-        "updateWarehouseBalance": "UPDATE WAREHOUSE SET W_YTD = W_YTD + {} WHERE W_ID = {}", # h_amount, w_id
-        "getDistrict": "SELECT D_NAME, D_STREET_1, D_STREET_2, D_CITY, D_STATE, D_ZIP FROM DISTRICT WHERE D_W_ID = {} AND D_ID = {}", # w_id, d_id
-        "updateDistrictBalance": "UPDATE DISTRICT SET D_YTD = D_YTD + {} WHERE D_W_ID  = {} AND D_ID = {}", # h_amount, d_w_id, d_id
-        "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA FROM CUSTOMER WHERE C_W_ID = {} AND C_D_ID = {} AND C_ID = {}", # w_id, d_id, c_id
-        "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA FROM CUSTOMER WHERE C_W_ID = {} AND C_D_ID = {} AND C_LAST = '{}' ORDER BY C_FIRST", # w_id, d_id, c_last
-        "updateBCCustomer": "UPDATE CUSTOMER SET C_BALANCE = {}, C_YTD_PAYMENT = {}, C_PAYMENT_CNT = {}, C_DATA = '{}' WHERE C_W_ID = {} AND C_D_ID = {} AND C_ID = {}", # c_balance, c_ytd_payment, c_payment_cnt, c_data, c_w_id, c_d_id, c_id
-        "updateGCCustomer": "UPDATE CUSTOMER SET C_BALANCE = {}, C_YTD_PAYMENT = {}, C_PAYMENT_CNT = {} WHERE C_W_ID = {} AND C_D_ID = {} AND C_ID = {}", # c_balance, c_ytd_payment, c_payment_cnt, c_w_id, c_d_id, c_id
+        "getWarehouse": "SELECT W_NAME, W_STREET_1, W_STREET_2, W_CITY, W_STATE, W_ZIP FROM WAREHOUSE WHERE W_ID = {}",
+        # w_id
+        "updateWarehouseBalance": "UPDATE WAREHOUSE SET W_YTD = W_YTD + {} WHERE W_ID = {}",  # h_amount, w_id
+        "getDistrict": "SELECT D_NAME, D_STREET_1, D_STREET_2, D_CITY, D_STATE, D_ZIP FROM DISTRICT WHERE D_W_ID = {} AND D_ID = {}",
+        # w_id, d_id
+        "updateDistrictBalance": "UPDATE DISTRICT SET D_YTD = D_YTD + {} WHERE D_W_ID  = {} AND D_ID = {}",
+        # h_amount, d_w_id, d_id
+        "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA FROM CUSTOMER WHERE C_W_ID = {} AND C_D_ID = {} AND C_ID = {}",
+        # w_id, d_id, c_id
+        "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA FROM CUSTOMER WHERE C_W_ID = {} AND C_D_ID = {} AND C_LAST = '{}' ORDER BY C_FIRST",
+        # w_id, d_id, c_last
+        "updateBCCustomer": "UPDATE CUSTOMER SET C_BALANCE = {}, C_YTD_PAYMENT = {}, C_PAYMENT_CNT = {}, C_DATA = '{}' WHERE C_W_ID = {} AND C_D_ID = {} AND C_ID = {}",
+        # c_balance, c_ytd_payment, c_payment_cnt, c_data, c_w_id, c_d_id, c_id
+        "updateGCCustomer": "UPDATE CUSTOMER SET C_BALANCE = {}, C_YTD_PAYMENT = {}, C_PAYMENT_CNT = {} WHERE C_W_ID = {} AND C_D_ID = {} AND C_ID = {}",
+        # c_balance, c_ytd_payment, c_payment_cnt, c_w_id, c_d_id, c_id
         "insertHistory": "INSERT INTO HISTORY VALUES ({}, {}, {}, {}, {}, '{}', {}, '{}')",
     },
 
     "STOCK_LEVEL": {
         "getOId": "SELECT D_NEXT_O_ID FROM DISTRICT WHERE D_W_ID = {} AND D_ID = {}",
         "getStockCount": """
-            SELECT COUNT(DISTINCT(OL_I_ID)) FROM ORDER_LINE, STOCK
-            WHERE OL_W_ID = {}
-              AND OL_D_ID = {}
-              AND OL_O_ID < {}
-              AND OL_O_ID >= {}
-              AND S_W_ID = {}
-              AND S_I_ID = OL_I_ID
-              AND S_QUANTITY < {}
-        """,
+                         SELECT COUNT(DISTINCT (OL_I_ID))
+                         FROM ORDER_LINE,
+                              STOCK
+                         WHERE OL_W_ID = {}
+                           AND OL_D_ID = {}
+                           AND OL_O_ID
+                             < {}
+                           AND OL_O_ID >= {}
+                           AND S_W_ID = {}
+                           AND S_I_ID = OL_I_ID
+                           AND S_QUANTITY
+                             < {}
+                         """,
     },
 }
 
@@ -104,7 +130,7 @@ TXN_QUERIES = {
 ## ==============================================
 class DuckdbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "database": ("The path to the Duckdb database", "/tmp/tpcc_duckdb.db" ),
+        "database": ("The path to the Duckdb database", "/tmp/tpcc_duckdb.db"),
     }
 
     def __init__(self, ddl):
@@ -164,7 +190,6 @@ class DuckdbDriver(AbstractDriver):
             entry = entry[:-1] + '),'
             all_rows += entry
 
-
         return all_rows
 
     ## ----------------------------------------------
@@ -176,7 +201,7 @@ class DuckdbDriver(AbstractDriver):
         if tableName == 'ORDER_LINE':
             for i in range(0, len(tuples), 1000):
                 try:
-                    values = self.build_sql(tableName, tuples[i:i+1000])
+                    values = self.build_sql(tableName, tuples[i:i + 1000])
                     sql = f'INSERT INTO {tableName} VALUES {values[:-1]}'
                     self.cursor.execute(sql)
                 except Exception as e:
@@ -212,8 +237,8 @@ class DuckdbDriver(AbstractDriver):
         o_carrier_id = params["o_carrier_id"]
         ol_delivery_d = params["ol_delivery_d"]
 
-        result = [ ]
-        for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
+        result = []
+        for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE + 1):
             self.cursor.execute(q["getNewOrder"].format(d_id, w_id))
             # self.cursor.execute(q["getNewOrder"], [d_id, w_id])
             newOrder = self.cursor.fetchone()
@@ -268,7 +293,7 @@ class DuckdbDriver(AbstractDriver):
         assert len(i_ids) == len(i_qtys)
 
         all_local = True
-        items = [ ]
+        items = []
         for i in range(len(i_ids)):
             ## Determine if this is an all local order or not
             all_local = all_local and i_w_ids[i] == w_id
@@ -306,13 +331,14 @@ class DuckdbDriver(AbstractDriver):
         o_carrier_id = constants.NULL_CARRIER_ID
 
         self.cursor.execute(q["incrementNextOrderId"].format(d_next_o_id + 1, d_id, w_id))
-        self.cursor.execute(q["createOrder"].format(d_next_o_id, d_id, w_id, c_id, o_entry_d, o_carrier_id, ol_cnt, all_local))
+        self.cursor.execute(
+            q["createOrder"].format(d_next_o_id, d_id, w_id, c_id, o_entry_d, o_carrier_id, ol_cnt, all_local))
         self.cursor.execute(q["createNewOrder"].format(d_next_o_id, d_id, w_id))
 
         ## ----------------
         ## Insert Order Item Information
         ## ----------------
-        item_data = [ ]
+        item_data = []
         total = 0
         for i in range(len(i_ids)):
             ol_number = i + 1
@@ -335,7 +361,7 @@ class DuckdbDriver(AbstractDriver):
             s_order_cnt = stockInfo[3]
             s_remote_cnt = stockInfo[4]
             s_data = stockInfo[1]
-            s_dist_xx = stockInfo[5] # Fetches data from the s_dist_[d_id] column
+            s_dist_xx = stockInfo[5]  # Fetches data from the s_dist_[d_id] column
 
             ## Update stock
             s_ytd += ol_quantity
@@ -347,7 +373,8 @@ class DuckdbDriver(AbstractDriver):
 
             if ol_supply_w_id != w_id: s_remote_cnt += 1
 
-            self.cursor.execute(q["updateStock"].format(s_quantity, s_ytd, s_order_cnt, s_remote_cnt, ol_i_id, ol_supply_w_id))
+            self.cursor.execute(
+                q["updateStock"].format(s_quantity, s_ytd, s_order_cnt, s_remote_cnt, ol_i_id, ol_supply_w_id))
 
             if i_data.find(constants.ORIGINAL_STRING) != -1 and s_data.find(constants.ORIGINAL_STRING) != -1:
                 brand_generic = 'B'
@@ -358,26 +385,29 @@ class DuckdbDriver(AbstractDriver):
             ol_amount = ol_quantity * i_price
             total += ol_amount
 
-            stmt = q["createOrderLine"].format(d_next_o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, o_entry_d, ol_quantity, ol_amount, s_dist_xx)
-            self.cursor.execute(q["createOrderLine"].format(d_next_o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, o_entry_d, ol_quantity, ol_amount, s_dist_xx))
+            stmt = q["createOrderLine"].format(d_next_o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, o_entry_d,
+                                               ol_quantity, ol_amount, s_dist_xx)
+            self.cursor.execute(
+                q["createOrderLine"].format(d_next_o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, o_entry_d,
+                                            ol_quantity, ol_amount, s_dist_xx))
 
             ## Add the info to be returned
-            item_data.append( (i_name, s_quantity, brand_generic, i_price, ol_amount) )
+            item_data.append((i_name, s_quantity, brand_generic, i_price, ol_amount))
         ## FOR
 
         ## Commit!
         self.conn.commit()
 
         ## Adjust the total for the discount
-        #print "c_discount:", c_discount, type(c_discount)
-        #print "w_tax:", w_tax, type(w_tax)
-        #print "d_tax:", d_tax, type(d_tax)
+        # print "c_discount:", c_discount, type(c_discount)
+        # print "w_tax:", w_tax, type(w_tax)
+        # print "d_tax:", d_tax, type(d_tax)
         total *= (1 - c_discount) * (1 + w_tax + d_tax)
 
         ## Pack up values the client is missing (see TPC-C 2.4.3.5)
-        misc = [ (w_tax, d_tax, d_next_o_id, total) ]
+        misc = [(w_tax, d_tax, d_next_o_id, total)]
 
-        return [ customer_info, misc, item_data ]
+        return [customer_info, misc, item_data]
 
     ## ----------------------------------------------
     ## doOrderStatus
@@ -403,7 +433,7 @@ class DuckdbDriver(AbstractDriver):
             all_customers = self.cursor.fetchall()
             assert len(all_customers) > 0
             namecnt = len(all_customers)
-            index = int((namecnt-1)/2)
+            index = int((namecnt - 1) / 2)
             customer = all_customers[index]
             c_id = customer[0]
         assert len(customer) > 0
@@ -415,10 +445,10 @@ class DuckdbDriver(AbstractDriver):
             self.cursor.execute(q["getOrderLines"].format(w_id, d_id, order[0]))
             orderLines = self.cursor.fetchall()
         else:
-            orderLines = [ ]
+            orderLines = []
 
         self.conn.commit()
-        return [ customer, order, orderLines ]
+        return [customer, order, orderLines]
 
     ## ----------------------------------------------
     ## doPayment
@@ -445,7 +475,7 @@ class DuckdbDriver(AbstractDriver):
             all_customers = self.cursor.fetchall()
             assert len(all_customers) > 0
             namecnt = len(all_customers)
-            index = int((namecnt-1)/2)
+            index = int((namecnt - 1) / 2)
             customer = all_customers[index]
             c_id = customer[0]
         assert len(customer) > 0
@@ -468,10 +498,12 @@ class DuckdbDriver(AbstractDriver):
             newData = " ".join(map(str, [c_id, c_d_id, c_w_id, d_id, w_id, h_amount]))
             c_data = (newData + "|" + c_data)
             if len(c_data) > constants.MAX_C_DATA: c_data = c_data[:constants.MAX_C_DATA]
-            self.cursor.execute(q["updateBCCustomer"].format(c_balance, c_ytd_payment, c_payment_cnt, c_data, c_w_id, c_d_id, c_id))
+            self.cursor.execute(
+                q["updateBCCustomer"].format(c_balance, c_ytd_payment, c_payment_cnt, c_data, c_w_id, c_d_id, c_id))
         else:
             c_data = ""
-            self.cursor.execute(q["updateGCCustomer"].format(c_balance, c_ytd_payment, c_payment_cnt, c_w_id, c_d_id, c_id))
+            self.cursor.execute(
+                q["updateGCCustomer"].format(c_balance, c_ytd_payment, c_payment_cnt, c_w_id, c_d_id, c_id))
 
         # Concatenate w_name, four spaces, d_name
         h_data = "%s    %s" % (warehouse[0], district[0])
@@ -488,7 +520,7 @@ class DuckdbDriver(AbstractDriver):
         # H_AMOUNT, and H_DATE.
 
         # Hand back all the warehouse, district, and customer data
-        return [ warehouse, district, customer ]
+        return [warehouse, district, customer]
 
     ## ----------------------------------------------
     ## doStockLevel

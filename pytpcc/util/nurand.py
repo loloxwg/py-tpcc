@@ -29,7 +29,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # -----------------------------------------------------------------------
 
-from util import rand
+from pytpcc.util import rand
 
 def makeForLoad():
     """Create random NURand constants, appropriate for loading the database."""

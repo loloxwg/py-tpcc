@@ -35,10 +35,10 @@ import os
 import sqlite3
 import logging
 import subprocess
+from datetime import datetime
 from pprint import pprint,pformat
-
-import constants
-from drivers.abstractdriver import *
+from pytpcc import constants
+from pytpcc.drivers.abstractdriver import AbstractDriver
 
 TXN_QUERIES = {
     "DELIVERY": {
@@ -141,6 +141,9 @@ class SqliteDriver(AbstractDriver):
 
         self.conn = sqlite3.connect(self.database)
         self.cursor = self.conn.cursor()
+        # 启用WAL模式以提高并发性能
+        self.cursor.execute("PRAGMA journal_mode=WAL")
+        self.cursor.execute("PRAGMA synchronous=NORMAL")
 
     ## ----------------------------------------------
     ## loadTuples

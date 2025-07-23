@@ -37,35 +37,40 @@ import time
 import multiprocessing
 import traceback
 from configparser import ConfigParser
-from pprint import pprint,pformat
+from pprint import pprint, pformat
 
-from util import *
-from runtime import *
-import drivers
+from pytpcc.util import *
+from pytpcc.runtime import *
+import pytpcc.drivers as drivers
 
-logging.basicConfig(level = logging.INFO,
+logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(funcName)s:%(lineno)03d] %(levelname)-5s: %(message)s",
                     datefmt="%m-%d-%Y %H:%M:%S",
-                    stream = sys.stdout)
+                    stream=sys.stdout)
+
 
 ## ==============================================
 ## createDriverClass
 ## ==============================================
 def createDriverClass(name):
     full_name = "%sDriver" % name.title()
-    mod = __import__('drivers.%s' % full_name.lower(), globals(), locals(), [full_name])
+    mod = __import__('pytpcc.drivers.%s' % full_name.lower(), globals(), locals(), [full_name])
     klass = getattr(mod, full_name)
     return klass
+
+
 ## DEF
 
 ## ==============================================
 ## getDrivers
 ## ==============================================
 def getDrivers():
-    drivers = [ ]
-    for f in map(lambda x: os.path.basename(x).replace("driver.py", ""), glob.glob("./drivers/*driver.py")):
+    drivers = []
+    for f in map(lambda x: os.path.basename(x).replace("driver.py", ""), glob.glob("./pytpcc/drivers/*driver.py")):
         if f != "abstract": drivers.append(f)
     return (drivers)
+
+
 ## DEF
 
 ## ==============================================
@@ -77,13 +82,17 @@ def startLoading(driverClass, scaleParameters, args, config):
     debug = logging.getLogger().isEnabledFor(logging.DEBUG)
 
     # Split the warehouses into chunks
-    w_ids = map(lambda x: [ ], range(args['clients']))
-    for w_id in range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse+1):
+    w_ids = list(map(lambda x: [], range(args['clients'])))
+    logging.debug("Splitting warehouses into %d chunks" % args['clients'])
+    logging.debug("Starting warehouses: %d" % scaleParameters.starting_warehouse)
+    for w_id in range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse + 1):
         idx = w_id % args['clients']
         w_ids[idx].append(w_id)
     ## FOR
+    logging.debug("Ending warehouses: %d" % scaleParameters.ending_warehouse)
+    logging.debug("wids %s", str(w_ids))
 
-    loader_results = [ ]
+    loader_results = []
     for i in range(args['clients']):
         r = pool.apply_async(loaderFunc, (driverClass, scaleParameters, args, config, w_ids[i], True))
         loader_results.append(r)
@@ -92,6 +101,8 @@ def startLoading(driverClass, scaleParameters, args, config):
     pool.close()
     logging.debug("Waiting for %d loaders to finish" % args['clients'])
     pool.join()
+
+
 ## DEF
 
 ## ==============================================
@@ -109,17 +120,19 @@ def loaderFunc(driverClass, scaleParameters, args, config, w_ids, debug):
 
     try:
         loadItems = (1 in w_ids)
+        from pytpcc.runtime import loader
         l = loader.Loader(driver, scaleParameters, w_ids, loadItems)
         driver.loadStart()
         l.execute()
         driver.loadFinish()
     except KeyboardInterrupt:
-            return -1
+        return -1
     except (Exception, AssertionError) as ex:
         logging.warn("Failed to load data: %s" % (ex))
-        #if debug:
+        # if debug:
         traceback.print_exc(file=sys.stdout)
         raise
+
 
 ## DEF
 
@@ -131,7 +144,7 @@ def startExecution(driverClass, scaleParameters, args, config):
     pool = multiprocessing.Pool(args['clients'])
     debug = logging.getLogger().isEnabledFor(logging.DEBUG)
 
-    worker_results = [ ]
+    worker_results = []
     for i in range(args['clients']):
         r = pool.apply_async(executorFunc, (driverClass, scaleParameters, args, config, debug,))
         worker_results.append(r)
@@ -149,6 +162,8 @@ def startExecution(driverClass, scaleParameters, args, config):
     ## FOR
 
     return (total_results)
+
+
 ## DEF
 
 ## ==============================================
@@ -163,12 +178,15 @@ def executorFunc(driverClass, scaleParameters, args, config, debug):
     config['reset'] = False
     driver.loadConfig(config)
 
+    from pytpcc.runtime import executor
     e = executor.Executor(driver, scaleParameters, stop_on_error=args['stop_on_error'])
     driver.executeStart()
     results = e.execute(args['duration'])
     driver.executeFinish()
 
     return results
+
+
 ## DEF
 
 ## ==============================================
@@ -178,7 +196,7 @@ if __name__ == '__main__':
     aparser = argparse.ArgumentParser(description='Python implementation of the TPC-C Benchmark')
     aparser.add_argument('system', choices=getDrivers(),
                          help='Target system driver')
-    aparser.add_argument('--config', type=argparse.FileType('rb'),
+    aparser.add_argument('--config', type=str,
                          help='Path to driver configuration file')
     aparser.add_argument('--reset', action='store_true',
                          help='Instruct the driver to reset the contents of the database')
@@ -200,11 +218,15 @@ if __name__ == '__main__':
                          help='Disable executing the workload')
     aparser.add_argument('--print-config', action='store_true',
                          help='Print out the default configuration file for the system and exit')
-    aparser.add_argument('--debug', action='store_true',
+    aparser.add_argument('--debug', default=True, action='store_true',
                          help='Enable debug log messages')
     args = vars(aparser.parse_args())
 
     if args['debug']: logging.getLogger().setLevel(logging.DEBUG)
+
+    ## Arguments validation
+    assert args['reset'] == False or args['no_load'] == False, \
+        "'--reset' and '--no-load' are incompatible with each other"
 
     ## Create a handle to the target client driver
     driverClass = createDriverClass(args['system'])
@@ -214,42 +236,49 @@ if __name__ == '__main__':
     if args['print_config']:
         config = driver.makeDefaultConfig()
         print(driver.formatConfig(config))
-        print
+        print()
         sys.exit(0)
 
     ## Load Configuration file
     if args['config']:
         logging.debug("Loading configuration file '%s'" % args['config'])
         cparser = ConfigParser()
-        cparser.read(os.path.realpath(args['config'].name))
+        cparser.read(os.path.realpath(args['config']))
         config = dict(cparser.items(args['system']))
     else:
         logging.debug("Using default configuration for %s" % args['system'])
         defaultConfig = driver.makeDefaultConfig()
         config = dict(map(lambda x: (x, defaultConfig[x][1]), defaultConfig.keys()))
+
     config['reset'] = args['reset']
     config['load'] = False
     config['execute'] = False
+
     if config['reset']: logging.info("Reseting database")
     driver.loadConfig(config)
+
     logging.info("Initializing TPC-C benchmark using %s" % driver)
 
     ## Create ScaleParameters
+    from pytpcc.util import scaleparameters, rand, nurand
     scaleParameters = scaleparameters.makeWithScaleFactor(args['warehouses'], args['scalefactor'])
     nurand = rand.setNURand(nurand.makeForLoad())
-    if args['debug']: logging.debug("Scale Parameters:\n%s" % scaleParameters)
-
+    logging.info("Scale Parameters:\n%s" % scaleParameters)
     ## DATA LOADER!!!
     load_time = None
     if not args['no_load']:
         logging.info("Loading TPC-C benchmark data using %s" % (driver))
         load_start = time.time()
-        if args['clients'] == 1:
-            l = loader.Loader(driver, scaleParameters, range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse+1), True)
+        if args['clients'] == 1 or args['system'] == 'sqlite':
+            # 对于SQLite或单客户端模式，使用串行加载
+            from pytpcc.runtime import loader
+            l = loader.Loader(driver, scaleParameters,
+                              range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse + 1), True)
             driver.loadStart()
             l.execute()
             driver.loadFinish()
         else:
+            # 对于其他数据库和多客户端模式，使用并行加载
             startLoading(driverClass, scaleParameters, args, config)
         load_time = time.time() - load_start
     ## IF
@@ -257,6 +286,7 @@ if __name__ == '__main__':
     ## WORKLOAD DRIVER!!!
     if not args['no_execute']:
         if args['clients'] == 1:
+            from pytpcc.runtime import executor
             e = executor.Executor(driver, scaleParameters, stop_on_error=args['stop_on_error'])
             driver.executeStart()
             results = e.execute(args['duration'])

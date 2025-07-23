@@ -36,18 +36,20 @@ import random
 import traceback
 import logging
 from datetime import datetime
-from pprint import pprint,pformat
+from pprint import pprint, pformat
 
-import constants
-from util import *
+from pytpcc.drivers.abstractdriver import *
+from pytpcc.util import *
+import pytpcc.constants as constants
 
 
 class Executor:
 
-    def __init__(self, driver, scaleParameters, stop_on_error = False):
+    def __init__(self, driver, scaleParameters, stop_on_error=False):
         self.driver = driver
         self.scaleParameters = scaleParameters
         self.stop_on_error = stop_on_error
+
     ## DEF
 
     def execute(self, duration):
@@ -67,19 +69,21 @@ class Executor:
             except KeyboardInterrupt:
                 return -1
             except (Exception, AssertionError) as ex:
-                logging.warn("Failed to execute Transaction '%s': %s" % (txn, ex))
+                logging.warning("Failed to execute Transaction '%s': %s" % (txn, ex))
+                logging.warning("%s\nParameters:\n%s\nResult:\n%s" % (txn, pformat(params), pformat(val)))
                 if debug: traceback.print_exc(file=sys.stdout)
                 if self.stop_on_error: raise
                 r.abortTransaction(txn_id)
                 continue
 
-            #if debug: logging.debug("%s\nParameters:\n%s\nResult:\n%s" % (txn, pformat(params), pformat(val)))
+            # if debug: logging.debug("%s\nParameters:\n%s\nResult:\n%s" % (txn, pformat(params), pformat(val)))
 
             r.stopTransaction(txn_id)
         ## WHILE
 
         r.stopBenchmark()
-        return (r)
+        return r
+
     ## DEF
 
     def doOne(self):
@@ -91,19 +95,20 @@ class Executor:
         x = rand.number(1, 100)
         params = None
         txn = None
-        if x <= 4: ## 4%
+        if x <= 4:  ## 4%
             txn, params = (constants.TransactionTypes.STOCK_LEVEL, self.generateStockLevelParams())
-        elif x <= 4 + 4: ## 4%
+        elif x <= 4 + 4:  ## 4%
             txn, params = (constants.TransactionTypes.DELIVERY, self.generateDeliveryParams())
-        elif x <= 4 + 4 + 4: ## 4%
+        elif x <= 4 + 4 + 4:  ## 4%
             txn, params = (constants.TransactionTypes.ORDER_STATUS, self.generateOrderStatusParams())
-        elif x <= 43 + 4 + 4 + 4: ## 43%
+        elif x <= 43 + 4 + 4 + 4:  ## 43%
             txn, params = (constants.TransactionTypes.PAYMENT, self.generatePaymentParams())
-        else: ## 45%
+        else:  ## 45%
             assert x > 100 - 45
             txn, params = (constants.TransactionTypes.NEW_ORDER, self.generateNewOrderParams())
 
         return (txn, params)
+
     ## DEF
 
     ## ----------------------------------------------
@@ -115,6 +120,7 @@ class Executor:
         o_carrier_id = rand.number(constants.MIN_CARRIER_ID, constants.MAX_CARRIER_ID)
         ol_delivery_d = datetime.now()
         return makeParameterDict(locals(), "w_id", "o_carrier_id", "ol_delivery_d")
+
     ## DEF
 
     ## ----------------------------------------------
@@ -129,11 +135,11 @@ class Executor:
         o_entry_d = datetime.now()
 
         ## 1% of transactions roll back
-        rollback = False # FIXME rand.number(1, 100) == 1
+        rollback = False  # FIXME rand.number(1, 100) == 1
 
-        i_ids = [ ]
-        i_w_ids = [ ]
-        i_qtys = [ ]
+        i_ids = []
+        i_w_ids = []
+        i_qtys = []
         for i in range(0, ol_cnt):
             if rollback and i + 1 == ol_cnt:
                 i_ids.append(self.scaleParameters.items + 1)
@@ -146,7 +152,9 @@ class Executor:
             ## 1% of items are from a remote warehouse
             remote = (rand.number(1, 100) == 1)
             if self.scaleParameters.warehouses > 1 and remote:
-                i_w_ids.append(rand.numberExcluding(self.scaleParameters.starting_warehouse, self.scaleParameters.ending_warehouse, w_id))
+                i_w_ids.append(
+                    rand.numberExcluding(self.scaleParameters.starting_warehouse, self.scaleParameters.ending_warehouse,
+                                         w_id))
             else:
                 i_w_ids.append(w_id)
 
@@ -154,6 +162,7 @@ class Executor:
         ## FOR
 
         return makeParameterDict(locals(), "w_id", "d_id", "c_id", "o_entry_d", "i_ids", "i_w_ids", "i_qtys")
+
     ## DEF
 
     ## ----------------------------------------------
@@ -175,6 +184,7 @@ class Executor:
             c_id = self.makeCustomerId()
 
         return makeParameterDict(locals(), "w_id", "d_id", "c_id", "c_last")
+
     ## DEF
 
     ## ----------------------------------------------
@@ -201,7 +211,8 @@ class Executor:
         ## 15%: paying through another warehouse:
         else:
             ## select in range [1, num_warehouses] excluding w_id
-            c_w_id = rand.numberExcluding(self.scaleParameters.starting_warehouse, self.scaleParameters.ending_warehouse, w_id)
+            c_w_id = rand.numberExcluding(self.scaleParameters.starting_warehouse,
+                                          self.scaleParameters.ending_warehouse, w_id)
             assert c_w_id != w_id
             c_d_id = self.makeDistrictId()
 
@@ -214,6 +225,7 @@ class Executor:
             c_id = self.makeCustomerId()
 
         return makeParameterDict(locals(), "w_id", "d_id", "h_amount", "c_w_id", "c_d_id", "c_id", "c_last", "h_date")
+
     ## DEF
 
     ## ----------------------------------------------
@@ -225,26 +237,32 @@ class Executor:
         d_id = self.makeDistrictId()
         threshold = rand.number(constants.MIN_STOCK_LEVEL_THRESHOLD, constants.MAX_STOCK_LEVEL_THRESHOLD)
         return makeParameterDict(locals(), "w_id", "d_id", "threshold")
+
     ## DEF
 
     def makeWarehouseId(self):
         w_id = rand.number(self.scaleParameters.starting_warehouse, self.scaleParameters.ending_warehouse)
-        assert(w_id >= self.scaleParameters.starting_warehouse), "Invalid W_ID: %d" % w_id
-        assert(w_id <= self.scaleParameters.ending_warehouse), "Invalid W_ID: %d" % w_id
+        assert (w_id >= self.scaleParameters.starting_warehouse), "Invalid W_ID: %d" % w_id
+        assert (w_id <= self.scaleParameters.ending_warehouse), "Invalid W_ID: %d" % w_id
         return w_id
+
     ## DEF
 
     def makeDistrictId(self):
         return rand.number(1, self.scaleParameters.districtsPerWarehouse)
+
     ## DEF
 
     def makeCustomerId(self):
         return rand.NURand(1023, 1, self.scaleParameters.customersPerDistrict)
+
     ## DEF
 
     def makeItemId(self):
         return rand.NURand(8191, 1, self.scaleParameters.items)
     ## DEF
+
+
 ## CLASS
 
 def makeParameterDict(values, *args):
